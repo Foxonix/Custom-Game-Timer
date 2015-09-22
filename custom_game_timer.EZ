@@ -1,0 +1,103 @@
+; custom_game_timer.EZ
+; Foxonix / Metre Ideas and Design
+; www.foxonix.com
+
+; Program: Will Sakran
+; Created: 09.20.15
+; Public - Modify and share this program as you wish.
+
+; Program description
+;	Plays a tick-tock sound effect until the timeout is reached,
+;	then plays a "times up" sound effect. There are two different "times up"
+;	sound effects, which can be selected by a switch.
+
+; Hardware INPUTS
+	; Pushbutton attached to pin P1.0
+	; 2-position switch connected to pin P2.0 (timer duration select)
+	; 2-position switch connected to pin P2.1 (sound effect select)
+
+; Hardware OUTPUTS
+	; Speaker attached to PWM output
+
+; Set the device size. A larger device number allows more audio space, but
+; will take longer to upload and program.
+[device]
+SNC21030
+
+
+; Specify the number of pins to be used as trigger inputs
+[key]
+direct=1
+
+
+; List WAV files to be included in the program
+[files]
+tick_tock_12k.wav
+game_show_buzzer_12k.wav
+rpg_and_explosion_12k.wav
+
+
+; Define the various input states for the program.
+; This describes which pins will have buttons, switches, or
+; other inputs attached to them, and defines when those
+; inputs will be active and inactive.
+[input_states]
+; PIN		P1.0	
+locked_out:	x		; locked_out state means no buttons are active
+ready:		start_timer	; ready input state - P1.0 trigger calls start_timer label
+running:	stop_timer	; input state while running - P1.0 trigger calls stop_timer label
+
+
+; Define the routines (paths) that the program will use.
+; The init path is always called first on power up and reset.
+[paths]
+init:
+	& locked_out		; Disable all inputs during init
+	& freq=12k		; Set the audio playback rate to 12 kHz
+	& x0=0			; Initialize the timer counter register to zero
+	& x1=0			; Initialize the timout duration register to zero
+	& ready			; Enable ready input state
+	& end			; Stop program and put chip to sleep (low power mode)
+
+
+; when P1.0 is triggered, the start_timer label is called
+start_timer:
+	& running			; set the input state to "running"
+	& x0=0				; reset the timer counter
+	& P2?[x x x 0]:set_time1	; if time duration switch is 0, jump to set_time1
+	& set_time2			; if not, jump to set_time2
+
+set_time1:
+	& x1=10			; set the timeout duration to 10 (seconds)
+	& timer_loop		; jump to the timer loop
+
+set_time2:
+	& x1=30			; set the timeout duration to 30 (seconds)
+	& timer_loop		; jump to the timer loop
+
+
+timer_loop:
+	& tick_tock_12k.wav 	; Play tick tock sound effect (1 second long)
+	& x0=x0+1		; increment the timer counter
+	& x0?x1:timeout		; if x0=x1, then we've reached the end of the timeout period
+	& timer_loop		; if not, jump to timer_loop and keep ticking
+
+
+timeout:
+	& P2?[x x 0 x]:sound1	; if the sound effect selector switch is 0, jump to sound1
+	& sound2		; if not, jump to sound2
+
+sound1:
+	& game_show_buzzer_12k.wav
+	& ready			; set the input state to "ready" 
+	& end			; Stop program and put chip to sleep (low power mode)
+
+sound2:
+	& rpg_and_explosion_12k.wav
+	& ready			; set the input state to "ready" 
+	& end			; Stop program and put chip to sleep (low power mode)
+
+stop_timer:
+	& stop_v		; stop audio if it is playing
+	& ready			; set the input state to "ready"
+	& end			; stop program and put chip to sleep (low power mode)
